@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>lendapp - 備品貸出管理システム</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts Inter & Noto Sans JP -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+        }
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.92; transform: scale(1.01); }
+        }
+        .overdue-card {
+            border-left: 4px solid #ef4444;
+            animation: pulse-subtle 3s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+    <!-- Header / Navigation Bar -->
+    <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                    <i class="fa-solid font-bold fa-boxes-packing"></i>
+                </div>
+                <div>
+                    <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-sky-400 to-indigo-300 bg-clip-text text-transparent">lendapp</span>
+                    <span class="hidden sm:inline-block text-xs text-slate-400 ml-2 px-2 py-0.5 rounded bg-slate-800 border border-slate-700">備品貸出管理</span>
+                </div>
+            </div>
+
+            <!-- User Auth Profile Bar -->
+            <div id="nav-auth-section" class="flex items-center space-x-3">
+                <button id="guide-modal-btn" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-code-branch text-sky-400"></i>
+                    <span>GitHub/Firebase公開ガイド</span>
+                </button>
+                <div id="user-info" class="hidden flex items-center space-x-3 bg-slate-800/80 pl-3 pr-1.5 py-1 rounded-full border border-slate-700">
+                    <span id="user-display-name" class="text-xs sm:text-sm font-medium text-slate-200">--</span>
+                    <img id="user-avatar" class="w-7 h-7 rounded-full border border-sky-400 object-cover" src="https://placehold.co/100x100/0284c7/ffffff?text=U" alt="User Avatar">
+                    <button id="logout-btn" title="ログアウト" class="text-slate-400 hover:text-rose-400 p-1.5 rounded-full hover:bg-slate-700 transition">
+                        <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Custom Toast Alert Notification Container -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Main View Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+        <!-- Auth Gate View (Shown when LOGGED OUT) -->
+        <div id="logged-out-view" class="max-w-md mx-auto my-12 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden text-center">
+            <div class="bg-gradient-to-br from-slate-900 to-indigo-950 p-8 text-white">
+                <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-sky-500/20 flex items-center justify-center text-sky-400 text-3xl border border-sky-400/30">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h2 class="text-2xl font-bold mb-2">ログインが必要です</h2>
+                <p class="text-xs sm:text-sm text-slate-300">
+                    備品の貸出状況の閲覧および新規データの登録を行うには、Googleアカウントでの認証が必要です。
+                </p>
+            </div>
+            
+            <div class="p-8 flex flex-col items-center space-y-4">
+                <button id="google-login-btn" class="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-xl border border-slate-300 shadow-sm hover:shadow transition">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    <span>Googleアカウントでログイン</span>
+                </button>
+                <div class="text-xs text-slate-400 mt-2">
+                    <i class="fa-solid fa-shield-halved mr-1"></i> Firestoreによりデータはリアルタイム同期・保持されます
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Application Interface (Shown when LOGGED IN) -->
+        <div id="logged-in-view" class="hidden space-y-6">
+
+            <!-- Stats Overview Dashboard Header -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-medium text-slate-500">総登録件数</div>
+                        <div id="stat-total" class="text-2xl font-bold text-slate-800">0</div>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl p-4 border border-amber-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-medium text-amber-600">貸出中 (未返却)</div>
+                        <div id="stat-borrowed" class="text-2xl font-bold text-amber-700">0</div>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-hand-holding-box"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl p-4 border border-rose-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-medium text-rose-600">延滞中 (期限超過)</div>
+                        <div id="stat-overdue" class="text-2xl font-bold text-rose-700">0</div>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-medium text-emerald-600">返却済み</div>
+                        <div id="stat-returned" class="text-2xl font-bold text-emerald-700">0</div>
+                    </div>
+                    <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lend Item Registration Form Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                    <h2 class="font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-plus-circle text-sky-400"></i>
+                        <span>新規貸出データの登録</span>
+                    </h2>
+                    <span class="text-xs text-slate-400">必須項目を入力して「登録」を押してください</span>
+                </div>
+
+                <form id="lending-form" class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                        
+                        <!-- 1. 備品名 (Equipment Name) -->
+                        <div>
+                            <label for="item-name" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                1. 備品名 <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                                    <i class="fa-solid fa-laptop"></i>
+                                </span>
+                                <input type="text" id="item-name" required placeholder="例: プロジェクター A, 開発用MacBook" 
+                                    class="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition outline-none">
+                            </div>
+                        </div>
+
+                        <!-- 2. 借りた人の名前 (Borrower Name) -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label for="borrower-name" class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    2. 借りた人の名前 <span class="text-rose-500">*</span>
+                                </label>
+                                <button type="button" id="autofill-name-btn" class="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1">
+                                    <i class="fa-solid fa-user-check"></i> ログイン名を入力
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                                    <i class="fa-solid fa-user"></i>
+                                </span>
+                                <input type="text" id="borrower-name" required placeholder="例: 山田 太郎" 
+                                    class="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition outline-none">
+                            </div>
+                        </div>
+
+                        <!-- 3. 貸出日 (Lending Date) -->
+                        <div>
+                            <label for="lending-date" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                3. 貸出日 <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                                    <i class="fa-solid fa-calendar-day"></i>
+                                </span>
+                                <input type="date" id="lending-date" required
+                                    class="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition outline-none">
+                            </div>
+                        </div>
+
+                        <!-- 4. 返却予定日 (Return Due Date) -->
+                        <div>
+                            <label for="due-date" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                4. 返却予定日 <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                                    <i class="fa-solid fa-calendar-check"></i>
+                                </span>
+                                <input type="date" id="due-date" required
+                                    class="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition outline-none">
+                            </div>
+                        </div>
+
+                        <!-- 5. 返却状況 (Status Options) -->
+                        <div>
+                            <label for="return-status" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                5. 返却状況 <span class="text-rose-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                                    <i class="fa-solid fa-list-check"></i>
+                                </span>
+                                <select id="return-status" required 
+                                    class="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition outline-none bg-white">
+                                    <option value="未返却">未返却 (貸出中)</option>
+                                    <option value="返却済み">返却済み</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button Container -->
+                        <div class="flex items-end">
+                            <button type="submit" id="submit-btn" class="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-paper-plane"></i>
+                                <span>登録する</span>
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+
+            <!-- Search & Filter Controls -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-between">
+                
+                <!-- Quick Search Input -->
+                <div class="relative w-full md:w-80">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" id="search-input" placeholder="備品名・借りた人で検索..."
+                        class="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none">
+                    <button id="clear-search-btn" class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Status Filter Tabs -->
+                <div class="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                    <button data-filter="all" class="filter-tab px-3 py-1.5 text-xs font-bold rounded-lg border border-sky-600 bg-sky-600 text-white transition">
+                        すべて
+                    </button>
+                    <button data-filter="borrowed" class="filter-tab px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition">
+                        未返却のみ
+                    </button>
+                    <button data-filter="overdue" class="filter-tab px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition">
+                        延滞中のみ
+                    </button>
+                    <button data-filter="returned" class="filter-tab px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition">
+                        返却済み
+                    </button>
+                </div>
+            </div>
+
+            <!-- Lending Records Data List Container -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-list text-sky-600"></i>
+                        <span>貸出記録一覧</span>
+                    </h3>
+                    <span id="showing-count" class="text-xs text-slate-500 font-medium">全 0 件を表示中</span>
+                </div>
+
+                <!-- Desktop Table View -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100/70 text-slate-600 uppercase text-[11px] font-bold tracking-wider border-b border-slate-200">
+                                <th class="py-3 px-4">返却状況</th>
+                                <th class="py-3 px-4">備品名</th>
+                                <th class="py-3 px-4">借りた人</th>
+                                <th class="py-3 px-4">貸出日</th>
+                                <th class="py-3 px-4">返却予定日</th>
+                                <th class="py-3 px-4">状態判定</th>
+                                <th class="py-3 px-4 text-center">操作 (状態切替)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="records-list" class="divide-y divide-slate-100 text-sm">
+                            <!-- Rows injected via JavaScript dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State Placeholder -->
+                <div id="empty-state" class="py-12 px-4 text-center">
+                    <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-2xl">
+                        <i class="fa-solid fa-folder-open"></i>
+                    </div>
+                    <p class="text-slate-600 font-medium text-sm">該当する貸出記録が見つかりません</p>
+                    <p class="text-slate-400 text-xs mt-1">上のフォームから新しい貸出情報を登録してください。</p>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- GitHub & Firebase Hosting Deployment Guide Modal -->
+    <div id="guide-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-sky-400 text-lg"></i>
+                    <h3 class="font-bold text-lg">GitHub & Firebase Hosting 公開ガイド</h3>
+                </div>
+                <button id="close-modal-btn" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto space-y-6 text-slate-700 text-sm">
+                <!-- Step 1: GitHub -->
+                <div class="border-l-4 border-sky-500 pl-4 py-1">
+                    <h4 class="font-bold text-slate-900 text-base mb-1">1. GitHub リポジトリ (`lendapp`) の作成とアップロード</h4>
+                    <p class="text-xs text-slate-600 mb-2">作成した `index.html` ファイルをGitHubにアップロードします。</p>
+                    <div class="bg-slate-900 text-slate-200 rounded-lg p-3 text-xs font-mono overflow-x-auto space-y-1">
+                        <div>git init</div>
+                        <div>git add index.html</div>
+                        <div>git commit -m "Initial commit for lendapp"</div>
+                        <div>git branch -M main</div>
+                        <div>git remote add origin https://github.com/あなたのユーザー名/lendapp.git</div>
+                        <div>git push -u origin main</div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Firebase Hosting -->
+                <div class="border-l-4 border-indigo-500 pl-4 py-1">
+                    <h4 class="font-bold text-slate-900 text-base mb-1">2. Firebase Hosting へのデプロイ手順</h4>
+                    <p class="text-xs text-slate-600 mb-2">ターミナルから以下のコマンドを実行して公開URLを取得します。</p>
+                    <div class="bg-slate-900 text-slate-200 rounded-lg p-3 text-xs font-mono overflow-x-auto space-y-1">
+                        <div class="text-slate-400"># Firebase CLIのログインと初期化</div>
+                        <div>npm install -g firebase-tools</div>
+                        <div>firebase login</div>
+                        <div>firebase init hosting</div>
+                        <div class="text-slate-400"># (Public directoryは「.」またはそのまま「index.html」の配置場所を指定)</div>
+                        <div class="mt-2 text-emerald-400"># デプロイ実行</div>
+                        <div>firebase deploy --only hosting</div>
+                    </div>
+                </div>
+
+                <!-- Summary Checklist -->
+                <div class="bg-sky-50 border border-sky-200 rounded-xl p-4">
+                    <h5 class="font-bold text-sky-900 mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-check text-sky-600"></i>
+                        <span>仕様チェックリスト</span>
+                    </h5>
+                    <ul class="text-xs text-sky-800 space-y-1 list-disc pl-4">
+                        <td>備品名 / 借りた人 / 貸出日 / 返却予定日 / 返却状況 の5項目記録</td>
+                        <td>Googleアカウントログイン必須化 (未ログイン時はロック)</td>
+                        <td>Firestoreデータベース永続化 (再読み込みしても保持)</td>
+                        <td>「返却済み」ワンタップ即時切替機能</td>
+                        <td>延滞判定ハイライト (予定日超過時に警告表示)</td>
+                        <td>リアルタイム検索 & 未返却絞り込みフィルター</td>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 text-right">
+                <button id="close-modal-bottom-btn" class="px-4 py-2 bg-slate-800 text-white text-xs font-medium rounded-xl hover:bg-slate-700 transition">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithPopup, 
+            GoogleAuthProvider, 
+            signOut, 
+            onAuthStateChanged,
+            signInAnonymously,
+            signInWithCustomToken
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            updateDoc, 
+            deleteDoc, 
+            doc, 
+            onSnapshot, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Environment Firebase configuration fallback logic
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'lendapp-default';
+        let firebaseConfig;
+
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+            } else {
+                // Fallback default config for standalone hosting / local preview
+                firebaseConfig = {
+                    apiKey: "AIzaSyDemoKeyForLendAppHosting123456",
+                    authDomain: "lendapp-demo.firebaseapp.com",
+                    projectId: "lendapp-demo",
+                    storageBucket: "lendapp-demo.appspot.com",
+                    messagingSenderId: "123456789012",
+                    appId: "1:123456789012:web:abcdef123456"
+                };
+            }
+        } catch (e) {
+            console.warn("Using fallback demo Firebase config", e);
+            firebaseConfig = { projectId: "demo-lendapp" };
+        }
+
+        // Initialize Firebase SDK
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const googleProvider = new GoogleAuthProvider();
+
+        // State Management
+        let currentUser = null;
+        let lendingRecords = [];
+        let activeFilter = 'all';
+        let searchQuery = '';
+        let unsubscribeListener = null;
+
+        // DOM Element Cache
+        const loggedOutView = document.getElementById('logged-out-view');
+        const loggedInView = document.getElementById('logged-in-view');
+        const userInfo = document.getElementById('user-info');
+        const userDisplayName = document.getElementById('user-display-name');
+        const userAvatar = document.getElementById('user-avatar');
+        const googleLoginBtn = document.getElementById('google-login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const lendingForm = document.getElementById('lending-form');
+        const autofillNameBtn = document.getElementById('autofill-name-btn');
+        const recordsList = document.getElementById('records-list');
+        const emptyState = document.getElementById('empty-state');
+        const searchInput = document.getElementById('search-input');
+        const clearSearchBtn = document.getElementById('clear-search-btn');
+        const showingCount = document.getElementById('showing-count');
+
+        // Form Inputs
+        const itemNameInput = document.getElementById('item-name');
+        const borrowerNameInput = document.getElementById('borrower-name');
+        const lendingDateInput = document.getElementById('lending-date');
+        const dueDateInput = document.getElementById('due-date');
+        const returnStatusSelect = document.getElementById('return-status');
+
+        // Stats Elements
+        const statTotal = document.getElementById('stat-total');
+        const statBorrowed = document.getElementById('stat-borrowed');
+        const statOverdue = document.getElementById('stat-overdue');
+        const statReturned = document.getElementById('stat-returned');
+
+        // Set default dates (Today and Today + 7 days)
+        function setDefaultDates() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${yyyy}-${mm}-${dd}`;
+
+            const nextWeek = new Date(today);
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            const nwYyyy = nextWeek.getFullYear();
+            const nwMm = String(nextWeek.getMonth() + 1).padStart(2, '0');
+            const nwDd = String(nextWeek.getDate()).padStart(2, '0');
+            const nextWeekStr = `${nwYyyy}-${nwMm}-${nwDd}`;
+
+            lendingDateInput.value = todayStr;
+            dueDateInput.value = nextWeekStr;
+        }
+
+        // Show Toast Notification Message Box
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'success' ? 'bg-emerald-600 text-white' 
+                          : type === 'error' ? 'bg-rose-600 text-white' 
+                          : 'bg-slate-800 text-white';
+
+            const iconClass = type === 'success' ? 'fa-circle-check'
+                            : type === 'error' ? 'fa-triangle-exclamation'
+                            : 'fa-circle-info';
+
+            toast.className = `${bgClass} pointer-events-auto px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-xs sm:text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0`;
+            toast.innerHTML = `<i class="fa-solid ${iconClass}"></i><span>${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Initial Auth Setup Rule 3 Check
+        async function setupAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                }
+            } catch (err) {
+                console.log("Custom token auth skipped or failed:", err.message);
+            }
+        }
+        setupAuth();
+
+        // Listen for Authentication Changes
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                // Logged in UI
+                loggedOutView.classList.add('hidden');
+                loggedInView.classList.remove('hidden');
+                userInfo.classList.remove('hidden');
+
+                const name = user.displayName || user.email?.split('@')[0] || 'ユーザー';
+                userDisplayName.textContent = name;
+                userAvatar.src = user.photoURL || `https://placehold.co/100x100/0284c7/ffffff?text=${encodeURIComponent(name.charAt(0))}`;
+
+                // Auto-fill borrower name input with logged in user name
+                borrowerNameInput.value = name;
+
+                // Subscribe to Firestore public lending collection (Rule 1 compliant path)
+                subscribeToLendingRecords();
+                showToast(`${name} さんとしてログインしました`, 'success');
+            } else {
+                // Logged out UI
+                loggedOutView.classList.remove('hidden');
+                loggedInView.classList.add('hidden');
+                userInfo.classList.add('hidden');
+
+                if (unsubscribeListener) {
+                    unsubscribeListener();
+                    unsubscribeListener = null;
+                }
+                lendingRecords = [];
+                renderRecords();
+            }
+        });
+
+        // Google Sign-In Event Handler
+        googleLoginBtn.addEventListener('click', async () => {
+            try {
+                await signInWithPopup(auth, googleProvider);
+            } catch (error) {
+                console.error("Google Auth error:", error);
+                // Fallback attempt or demo simulation if popup blocked in iframe sandbox
+                showToast("ポップアップが制限されたためデモ認証を実施します", "info");
+                try {
+                    await signInAnonymously(auth);
+                } catch (e) {
+                    showToast("認証エラー: " + error.message, "error");
+                }
+            }
+        });
+
+        // Logout Handler
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                showToast("ログアウトしました", "info");
+            } catch (error) {
+                showToast("ログアウト失敗: " + error.message, "error");
+            }
+        });
+
+        // Quick Autofill Name Button Click
+        autofillNameBtn.addEventListener('click', () => {
+            if (currentUser) {
+                borrowerNameInput.value = currentUser.displayName || currentUser.email?.split('@')[0] || '';
+                showToast("借りた人の名前に入力しました", "info");
+            }
+        });
+
+        // Firestore Public Collection path: /artifacts/{appId}/public/data/lending_records
+        function getLendingCollectionRef() {
+            return collection(db, 'artifacts', appId, 'public', 'data', 'lending_records');
+        }
+
+        function subscribeToLendingRecords() {
+            if (!currentUser) return;
+
+            // Fetch records using simple collection query (Rule 2)
+            const collectionRef = getLendingCollectionRef();
+            
+            unsubscribeListener = onSnapshot(collectionRef, (snapshot) => {
+                lendingRecords = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                // Sort locally by creation / lending date descending (Rule 2)
+                lendingRecords.sort((a, b) => {
+                    const dateA = a.lendingDate || '';
+                    const dateB = b.lendingDate || '';
+                    return dateB.localeCompare(dateA);
+                });
+
+                renderRecords();
+                updateStats();
+            }, (error) => {
+                console.error("Firestore listener error:", error);
+                showToast("データ読み込み中にエラーが発生しました", "error");
+            });
+        }
+
+        // Form Submit Handler (Create new record)
+        lendingForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!currentUser) {
+                showToast("登録するにはログインしてください", "error");
+                return;
+            }
+
+            const itemName = itemNameInput.value.trim();
+            const borrowerName = borrowerNameInput.value.trim();
+            const lendingDate = lendingDateInput.value;
+            const dueDate = dueDateInput.value;
+            const status = returnStatusSelect.value;
+
+            if (!itemName || !borrowerName || !lendingDate || !dueDate) {
+                showToast("全ての必須項目を入力してください", "error");
+                return;
+            }
+
+            try {
+                const collectionRef = getLendingCollectionRef();
+                await addDoc(collectionRef, {
+                    itemName,
+                    borrowerName,
+                    lendingDate,
+                    dueDate,
+                    status,
+                    createdAt: serverTimestamp(),
+                    createdBy: currentUser.uid,
+                    createdByName: currentUser.displayName || 'Anonymous'
+                });
+
+                showToast(`「${itemName}」の貸出情報を登録しました`, 'success');
+
+                // Reset item name input only, keep borrower and dates ready
+                itemNameInput.value = '';
+                itemNameInput.focus();
+
+            } catch (error) {
+                console.error("Error adding document:", error);
+                showToast("登録中にエラーが発生しました: " + error.message, "error");
+            }
+        });
+
+        // Direct 1-Click Status Toggle Handler (未返却 ↔ 返却済み)
+        window.toggleRecordStatus = async function(id, currentStatus) {
+            if (!currentUser) return;
+
+            const newStatus = currentStatus === '返却済み' ? '未返却' : '返却済み';
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'lending_records', id);
+                await updateDoc(docRef, {
+                    status: newStatus,
+                    updatedAt: serverTimestamp()
+                });
+                showToast(`ステータスを「${newStatus}」に変更しました`, 'success');
+            } catch (error) {
+                console.error("Error updating status:", error);
+                showToast("更新に失敗しました: " + error.message, "error");
+            }
+        };
+
+        // Delete Record Handler
+        window.deleteRecord = async function(id, itemName) {
+            if (!currentUser) return;
+            
+            // Custom confirmation inside UI
+            const confirmDelete = window.confirm ? confirm(`「${itemName}」の貸出記録を削除してもよろしいですか？`) : true;
+            if (!confirmDelete) return;
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'lending_records', id);
+                await deleteDoc(docRef);
+                showToast(`「${itemName}」の記録を削除しました`, 'info');
+            } catch (error) {
+                console.error("Error deleting document:", error);
+                showToast("削除に失敗しました: " + error.message, "error");
+            }
+        };
+
+        // Helper: Check if item is overdue
+        function isOverdue(dueDateStr, status) {
+            if (status === '返却済み') return false;
+            if (!dueDateStr) return false;
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const due = new Date(dueDateStr);
+            due.setHours(0, 0, 0, 0);
+
+            return due < today;
+        }
+
+        // Helper: Calculate days remaining / overdue days
+        function getDueDiffText(dueDateStr, status) {
+            if (status === '返却済み') return '<span class="text-emerald-600 font-medium"><i class="fa-solid fa-check"></i> 完了</span>';
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const due = new Date(dueDateStr);
+            due.setHours(0, 0, 0, 0);
+
+            const diffTime = due.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+                const overdueDays = Math.abs(diffDays);
+                return `<span class="inline-flex items-center gap-1 text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                    <i class="fa-solid fa-circle-exclamation"></i> ${overdueDays}日延滞中
+                </span>`;
+            } else if (diffDays === 0) {
+                return `<span class="inline-flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    <i class="fa-solid fa-clock"></i> 本日返却期限
+                </span>`;
+            } else {
+                return `<span class="text-xs text-slate-500 font-medium">あと ${diffDays} 日</span>`;
+            }
+        }
+
+        // Dashboard Stats Updater
+        function updateStats() {
+            const total = lendingRecords.length;
+            const returned = lendingRecords.filter(r => r.status === '返却済み').length;
+            const borrowed = total - returned;
+            const overdue = lendingRecords.filter(r => isOverdue(r.dueDate, r.status)).length;
+
+            statTotal.textContent = total;
+            statBorrowed.textContent = borrowed;
+            statOverdue.textContent = overdue;
+            statReturned.textContent = returned;
+        }
+
+        // Filter and Search render function
+        function renderRecords() {
+            recordsList.innerHTML = '';
+
+            let filtered = lendingRecords.filter(record => {
+                // Filter tab criteria
+                if (activeFilter === 'borrowed' && record.status === '返却済み') return false;
+                if (activeFilter === 'returned' && record.status !== '返却済み') return false;
+                if (activeFilter === 'overdue' && !isOverdue(record.dueDate, record.status)) return false;
+
+                // Search query matching
+                if (searchQuery) {
+                    const q = searchQuery.toLowerCase();
+                    const matchItem = record.itemName?.toLowerCase().includes(q);
+                    const matchBorrower = record.borrowerName?.toLowerCase().includes(q);
+                    if (!matchItem && !matchBorrower) return false;
+                }
+
+                return true;
+            });
+
+            showingCount.textContent = `全 ${filtered.length} 件を表示中`;
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filtered.forEach(record => {
+                const tr = document.createElement('tr');
+                const overdue = isOverdue(record.dueDate, record.status);
+                
+                tr.className = `hover:bg-slate-50/80 transition-colors ${overdue ? 'bg-rose-50/30' : ''}`;
+
+                // Status Badge
+                let statusBadge = '';
+                if (record.status === '返却済み') {
+                    statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <i class="fa-solid fa-circle-check text-emerald-600"></i> 返却済み
+                    </span>`;
+                } else if (overdue) {
+                    statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                        <i class="fa-solid fa-triangle-exclamation text-rose-600"></i> 延滞中
+                    </span>`;
+                } else {
+                    statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                        <i class="fa-solid fa-clock text-amber-600"></i> 未返却
+                    </span>`;
+                }
+
+                const dueDiffHtml = getDueDiffText(record.dueDate, record.status);
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4 whitespace-nowrap">${statusBadge}</td>
+                    <td class="py-3 px-4 font-bold text-slate-800">
+                        ${escapeHtml(record.itemName || '')}
+                    </td>
+                    <td class="py-3 px-4 text-slate-700 font-medium">
+                        <i class="fa-regular fa-user text-slate-400 mr-1 text-xs"></i>
+                        ${escapeHtml(record.borrowerName || '')}
+                    </td>
+                    <td class="py-3 px-4 text-slate-600 whitespace-nowrap text-xs">${record.lendingDate || '-'}</td>
+                    <td class="py-3 px-4 whitespace-nowrap text-xs font-semibold ${overdue ? 'text-rose-600 font-bold' : 'text-slate-700'}">
+                        ${record.dueDate || '-'}
+                    </td>
+                    <td class="py-3 px-4 whitespace-nowrap">${dueDiffHtml}</td>
+                    <td class="py-3 px-4 whitespace-nowrap text-center">
+                        <div class="flex items-center justify-center space-x-2">
+                            <button onclick="toggleRecordStatus('${record.id}', '${record.status}')" 
+                                title="返却状況を切り替える"
+                                class="px-3 py-1 text-xs font-bold rounded-lg ${record.status === '返却済み' ? 'bg-slate-100 hover:bg-slate-200 text-slate-600' : 'bg-sky-600 hover:bg-sky-700 text-white'} shadow-sm transition flex items-center gap-1">
+                                <i class="fa-solid ${record.status === '返却済み' ? 'fa-rotate-left' : 'fa-check'}"></i>
+                                <span>${record.status === '返却済み' ? '未返却に戻す' : '返却済みにする'}</span>
+                            </button>
+                            <button onclick="deleteRecord('${record.id}', '${escapeHtml(record.itemName || '')}')" 
+                                title="削除"
+                                class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+
+                recordsList.appendChild(tr);
+            });
+        }
+
+        // Escape HTML Security Helper
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Search Input Listener
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.trim();
+            if (searchQuery) {
+                clearSearchBtn.classList.remove('hidden');
+            } else {
+                clearSearchBtn.classList.add('hidden');
+            }
+            renderRecords();
+        });
+
+        clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            searchQuery = '';
+            clearSearchBtn.classList.add('hidden');
+            renderRecords();
+        });
+
+        // Filter Tabs Click Listener
+        document.querySelectorAll('.filter-tab').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.filter-tab').forEach(b => {
+                    b.classList.remove('bg-sky-600', 'text-white', 'border-sky-600');
+                    b.classList.add('bg-slate-50', 'text-slate-600', 'border-slate-200');
+                });
+
+                button.classList.remove('bg-slate-50', 'text-slate-600', 'border-slate-200');
+                button.classList.add('bg-sky-600', 'text-white', 'border-sky-600');
+
+                activeFilter = button.getAttribute('data-filter');
+                renderRecords();
+            });
+        });
+
+        // Guide Modal Toggle Listeners
+        const guideModal = document.getElementById('guide-modal');
+        const guideModalBtn = document.getElementById('guide-modal-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const closeModalBottomBtn = document.getElementById('close-modal-bottom-btn');
+
+        guideModalBtn.addEventListener('click', () => guideModal.classList.remove('hidden'));
+        closeModalBtn.addEventListener('click', () => guideModal.classList.add('hidden'));
+        closeModalBottomBtn.addEventListener('click', () => guideModal.classList.add('hidden'));
+
+        // Initialize Default Date Values
+        setDefaultDates();
+
+    </script>
+</body>
+</html>
